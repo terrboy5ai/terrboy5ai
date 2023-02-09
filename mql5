@@ -1,0 +1,87 @@
+#property strict
+#include <MQL5\Trade\Trade.mqh>
+
+input double LotSize=0.01;
+input double MaxLotSize=1.29;
+input int RiskPercentage=30;
+input int StopLoss=20;
+input int TrailingStop=15;
+input bool TrailingStopActivate=true;
+input int TakeProfitMin=30;
+input int TakeProfitMax=100;
+input int BreakevenAt=20;
+input int BreakevenProfit=20;
+input int TrailingTakeProfit=30;
+input bool TrailingTakeProfitActivate=true;
+input int TrailingTakeProfitStep=0;
+input int SlippageOpen=30;
+input int SlippageClose=40;
+input bool SignalEnabled=true;
+input bool ReverseStrategy=false;
+
+string Instrument="EURUSD";
+
+bool BuySignal=false;
+bool SellSignal=false;
+
+int OnInit()
+{
+    //Set the instruments being traded
+    SymbolSelect(Instrument,true);
+    //Check if two or more strategies provide a confirmation signal
+    if(FairGapValueSignal() && SupertrendSignal() && NewsSignal() && CandleStickSignal() && PriceActionSignal())
+    {
+        if(ReverseStrategy)
+        {
+            SellSignal=true;
+        }
+        else
+        {
+            BuySignal=true;
+        }
+    }
+    return(INIT_SUCCEEDED);
+}
+
+void OnDeinit(const int reason)
+{
+
+}
+
+void OnTick()
+{
+    //Check if two or more strategies provide a confirmation signal
+    if(FairGapValueSignal() && SupertrendSignal() && NewsSignal() && CandleStickSignal() && PriceActionSignal())
+    {
+        if(ReverseStrategy)
+        {
+            SellSignal=true;
+        }
+        else
+        {
+            BuySignal=true;
+        }
+    }
+
+    //Check if a Buy signal is generated
+    if(BuySignal && !PositionSelect(Instrument))
+    {
+        //Calculate the lot size based on account size and risk percentage
+        double calcLotSize=LotSize+((AccountFreeMargin()*RiskPercentage)/100);
+        //Make sure the calculated lot size does not exceed the maximum lot size
+        if(calcLotSize>MaxLotSize)
+        {
+            calcLotSize=MaxLotSize;
+        }
+        //Execute a buy trade with the calculated lot size
+        OrderSend(Instrument,OP_BUY,calcLotSize,Ask,10,Bid-StopLoss*Point,Bid+TakeProfitMin*Point,"My EA",123456,0,Green);
+        //Activate the trailing stop if required
+        if(TrailingStopActivate)
+        {
+            OrderModify(OrderTicket(),OrderOpenPrice(),Bid-TrailingStop*Point,Bid+TakeProfitMin*Point,0,Green);
+        }
+        //Reset the Buy signal
+        BuySignal=false;
+    }
+
+    //Check if a Sell signal is generated
